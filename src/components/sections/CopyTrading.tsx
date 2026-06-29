@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { TrendingUp, ShieldCheck, Zap, BarChart3, Globe, Coins, ArrowRight } from 'lucide-react';
+import { safeJson } from '@/lib/utils';
 
 const tradingCategories = [
   {
@@ -35,9 +36,11 @@ export default function CopyTrading() {
     const fetchData = async () => {
       try {
         const response = await fetch('/api/content', { cache: 'no-store' });
-        const data = await response.json();
-        if (response.ok && data.success && data.content?.copyTrading) {
+        const data = await safeJson(response);
+        if (response.ok && data?.success && data.content?.copyTrading) {
           setData(data.content.copyTrading);
+        } else if (!response.ok) {
+          console.warn('CopyTrading content fetch failed', response.status, data);
         }
       } catch (error) {
         console.error('Error fetching copy trading content:', error);

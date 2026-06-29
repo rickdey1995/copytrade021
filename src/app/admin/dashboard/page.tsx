@@ -10,6 +10,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { safeJson } from '@/lib/utils';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -34,12 +35,15 @@ import {
   Plus,
   Trash2,
   ExternalLink,
+  Menu,
+  X,
 } from 'lucide-react';
 
 export default function AdminDashboard() {
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [dbError, setDbError] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
 
@@ -93,9 +97,12 @@ export default function AdminDashboard() {
     const loadContent = async () => {
       try {
         const response = await fetch('/api/content', { cache: 'no-store' });
-        const data = await response.json();
-        if (response.ok && data.success && data.content) {
+        const data = await safeJson(response);
+        if (response.ok && data?.success && data.content) {
           setContent(data.content);
+        } else if (!response.ok) {
+          console.warn('Admin content load failed', response.status, data);
+          setDbError(true);
         }
       } catch (error) {
         console.error('Error loading content:', error);
@@ -121,10 +128,10 @@ export default function AdminDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(content),
       });
-      const data = await response.json();
+      const data = await safeJson(response);
 
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Content save failed');
+      if (!response.ok || !data?.success) {
+        throw new Error(data?.error || 'Content save failed');
       }
 
       toast({ title: 'Success', description: 'All configurations updated live across the ecosystem.' });
@@ -145,101 +152,165 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-[#080D1B] flex flex-col">
-      <header className="h-20 border-b border-white/5 bg-black/20 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-50">
-        <div className="flex items-center gap-4">
-          <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center text-black shadow-lg shadow-primary/20">
-            <Terminal className="w-6 h-6" />
+      {/* Mobile Menu Overlay */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 md:hidden" onClick={() => setMobileMenuOpen(false)} />
+      )}
+
+      {/* Header */}
+      <header className="border-b border-white/5 bg-black/20 backdrop-blur-md sticky top-0 z-50">
+        <div className="px-4 sm:px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center text-black shadow-lg shadow-primary/20 flex-shrink-0">
+              <Terminal className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-white font-bold text-base sm:text-lg truncate">Command Center</h1>
+              <p className="text-white/40 text-[10px] sm:text-xs font-medium truncate">Dashboard v2.0</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-white font-bold text-lg">Command Center</h1>
-            <p className="text-white/40 text-xs font-medium">Institutional Dashboard v2.0</p>
+
+          {/* Desktop Menu */}
+          <div className="hidden md:flex gap-2 lg:gap-4">
+            <Button variant="outline" className="border-white/10 text-white hover:bg-white/5 text-sm" onClick={() => router.push('/terminal')}>
+              <ExternalLink className="w-4 h-4 mr-2" />
+              Terminal
+            </Button>
+            <Button variant="outline" className="border-white/10 text-white hover:bg-white/5 text-sm" onClick={handleLogout}>
+              <LogOut className="w-4 h-4 mr-2" />
+              Logout
+            </Button>
+            <Button className="bg-primary text-black font-bold text-sm" onClick={handleSave} disabled={loading || dbError}>
+              {loading ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+              Deploy
+            </Button>
           </div>
+
+          {/* Mobile Menu Button */}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="md:hidden p-2 hover:bg-white/10 rounded-lg transition-colors"
+            aria-label="Toggle menu"
+          >
+            {mobileMenuOpen ? <X className="w-5 h-5 text-white" /> : <Menu className="w-5 h-5 text-white" />}
+          </button>
         </div>
-        <div className="flex flex-wrap gap-4">
-          <Button variant="outline" className="border-white/10 text-white hover:bg-white/5" onClick={() => router.push('/terminal')}>
-            <ExternalLink className="w-4 h-4 mr-2" />
-            Open Terminal
-          </Button>
-          <Button variant="outline" className="border-white/10 text-white hover:bg-white/5" onClick={handleLogout}>
-            <LogOut className="w-4 h-4 mr-2" />
-            Logout
-          </Button>
-          <Button className="bg-primary text-black font-bold" onClick={handleSave} disabled={loading || dbError}>
-            {loading ? <Loader2 className="animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-            Deploy Updates
-          </Button>
+
+        {/* Mobile Menu */}
+        <div
+          className={`md:hidden border-t border-white/5 bg-black/40 overflow-hidden transition-all duration-300 ease-in-out ${
+            mobileMenuOpen ? 'max-h-64' : 'max-h-0'
+          }`}
+        >
+          <div className="px-4 py-4 space-y-2">
+            <Button 
+              variant="ghost" 
+              className="w-full justify-start text-white hover:bg-white/10"
+              onClick={() => {
+                router.push('/terminal');
+                setMobileMenuOpen(false);
+              }}
+            >
+              <ExternalLink className="w-4 h-4 mr-3" />
+              Open Terminal
+            </Button>
+            <Button 
+              className="w-full bg-primary text-black font-bold justify-start" 
+              onClick={() => {
+                handleSave();
+                setMobileMenuOpen(false);
+              }}
+              disabled={loading || dbError}
+            >
+              {loading ? <Loader2 className="animate-spin w-4 h-4 mr-3" /> : <Save className="w-4 h-4 mr-3" />}
+              Deploy Updates
+            </Button>
+            <Button 
+              variant="ghost" 
+              className="w-full justify-start text-white hover:bg-white/10 text-red-400 hover:text-red-300"
+              onClick={() => {
+                handleLogout();
+                setMobileMenuOpen(false);
+              }}
+            >
+              <LogOut className="w-4 h-4 mr-3" />
+              Logout
+            </Button>
+          </div>
         </div>
       </header>
 
-      <main className="container mx-auto py-12 px-6 flex-1 max-w-6xl">
+      <main className="container mx-auto py-6 sm:py-12 px-3 sm:px-6 flex-1 max-w-6xl w-full">
         {dbError && (
           <Alert variant="destructive" className="mb-8 bg-destructive/10 border-destructive/20 text-destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Configuration Required</AlertTitle>
             <AlertDescription>
-              Firebase connection inactive. Fill your <code className="bg-black/20 px-1 rounded">.env</code> keys to enable live synchronization.
+              Database connection inactive. Fill your <code className="bg-black/20 px-1 rounded">.env</code> keys and ensure the DB is reachable.
             </AlertDescription>
           </Alert>
         )}
 
-        <Tabs defaultValue="trading" className="space-y-8">
-          <TabsList className="bg-white/5 border border-white/10 p-1 rounded-xl h-14 w-full justify-start overflow-x-auto overflow-y-hidden no-scrollbar">
-            <TabsTrigger value="trading" className="data-[state=active]:bg-primary data-[state=active]:text-black rounded-lg h-full flex items-center gap-2 px-6">
-              <Terminal className="w-4 h-4" /> Trading Terminal
+        <Tabs defaultValue="trading" className="space-y-6">
+          <TabsList className="bg-white/5 border border-white/10 p-1 rounded-xl h-auto md:h-14 w-full justify-start overflow-x-auto overflow-y-hidden no-scrollbar flex-wrap md:flex-nowrap">
+            <TabsTrigger value="trading" className="data-[state=active]:bg-primary data-[state=active]:text-black rounded-lg h-10 md:h-full flex items-center gap-1 md:gap-2 px-3 md:px-6 text-xs md:text-sm flex-shrink-0">
+              <Terminal className="w-3 h-3 md:w-4 md:h-4" /> <span className="hidden sm:inline">Trading Terminal</span><span className="sm:hidden">Trading</span>
             </TabsTrigger>
-            <TabsTrigger value="branding" className="data-[state=active]:bg-primary data-[state=active]:text-black rounded-lg h-full flex items-center gap-2 px-6">
-              <Settings className="w-4 h-4" /> Branding
+            <TabsTrigger value="branding" className="data-[state=active]:bg-primary data-[state=active]:text-black rounded-lg h-10 md:h-full flex items-center gap-1 md:gap-2 px-3 md:px-6 text-xs md:text-sm flex-shrink-0">
+              <Settings className="w-3 h-3 md:w-4 md:h-4" /> <span className="hidden sm:inline">Branding</span><span className="sm:hidden">Brand</span>
             </TabsTrigger>
-            <TabsTrigger value="hero" className="data-[state=active]:bg-primary data-[state=active]:text-black rounded-lg h-full flex items-center gap-2 px-6">
-              <Type className="w-4 h-4" /> Sections
+            <TabsTrigger value="hero" className="data-[state=active]:bg-primary data-[state=active]:text-black rounded-lg h-10 md:h-full flex items-center gap-1 md:gap-2 px-3 md:px-6 text-xs md:text-sm flex-shrink-0">
+              <Type className="w-3 h-3 md:w-4 md:h-4" /> Sections
             </TabsTrigger>
-            <TabsTrigger value="packages" className="data-[state=active]:bg-primary data-[state=active]:text-black rounded-lg h-full flex items-center gap-2 px-6">
-              <Package className="w-4 h-4" /> Programs
+            <TabsTrigger value="packages" className="data-[state=active]:bg-primary data-[state=active]:text-black rounded-lg h-10 md:h-full flex items-center gap-1 md:gap-2 px-3 md:px-6 text-xs md:text-sm flex-shrink-0">
+              <Package className="w-3 h-3 md:w-4 md:h-4" /> <span className="hidden sm:inline">Programs</span><span className="sm:hidden">Prog</span>
             </TabsTrigger>
-            <TabsTrigger value="referral" className="data-[state=active]:bg-primary data-[state=active]:text-black rounded-lg h-full flex items-center gap-2 px-6">
-              <Users className="w-4 h-4" /> Affiliate
+            <TabsTrigger value="referral" className="data-[state=active]:bg-primary data-[state=active]:text-black rounded-lg h-10 md:h-full flex items-center gap-1 md:gap-2 px-3 md:px-6 text-xs md:text-sm flex-shrink-0">
+              <Users className="w-3 h-3 md:w-4 md:h-4" /> <span className="hidden sm:inline">Affiliate</span><span className="sm:hidden">Aff</span>
             </TabsTrigger>
           </TabsList>
 
           {/* TRADING TERMINAL */}
           <TabsContent value="trading" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <Card className="lg:col-span-2 bg-white/5 border border-white/10 text-white rounded-[32px] shadow-xl shadow-black/20 overflow-hidden">
-                <CardHeader className="p-8 border-b border-white/5 bg-black/10 backdrop-blur-xl">
-                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                    <CardTitle className="text-2xl font-headline">Live Mirror Status</CardTitle>
-                    <Badge className="bg-orange-500/15 text-orange-300 border-none">Execution Engine Online</Badge>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+              <Card className="lg:col-span-2 bg-white/5 border border-white/10 text-white rounded-2xl md:rounded-[32px] shadow-xl shadow-black/20 overflow-hidden">
+                <CardHeader className="p-4 md:p-8 border-b border-white/5 bg-black/10 backdrop-blur-xl">
+                  <div className="flex flex-col gap-3 md:gap-4">
+                    <CardTitle className="text-lg md:text-2xl font-headline">Live Mirror Status</CardTitle>
+                    <Badge className="bg-orange-500/15 text-orange-300 border-none w-fit text-xs md:text-sm">Execution Engine Online</Badge>
                   </div>
                 </CardHeader>
-                <CardContent className="p-6 bg-black/10">
-                  <TradeBridgeTerminal showFollowerTerminal={false} />
+                <CardContent className="p-3 md:p-6 bg-black/10 overflow-x-auto">
+                  <div className="min-h-[300px]">
+                    <TradeBridgeTerminal showFollowerTerminal={false} />
+                  </div>
                 </CardContent>
               </Card>
 
-              <Card className="bg-white/5 border border-white/10 text-white rounded-[32px] shadow-xl shadow-black/20">
-                <CardHeader className="p-8 border-b border-white/5">
-                  <CardTitle className="text-2xl font-headline">Master Traders</CardTitle>
+              <Card className="bg-white/5 border border-white/10 text-white rounded-2xl md:rounded-[32px] shadow-xl shadow-black/20">
+                <CardHeader className="p-4 md:p-8 border-b border-white/5">
+                  <CardTitle className="text-lg md:text-2xl font-headline">Master Traders</CardTitle>
                 </CardHeader>
-                <CardContent className="px-8 pb-8 space-y-4">
+                <CardContent className="px-4 md:px-8 pb-4 md:pb-8 space-y-3">
                   {content.trading.traders.map((trader, i) => (
-                    <div key={i} className="p-4 rounded-2xl bg-black/20 border border-white/10 flex items-center justify-between gap-4 transition-all hover:border-orange-400/30">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-orange-500/15 flex items-center justify-center text-orange-300">
-                          <Users className="w-5 h-5" />
+                    <div key={i} className="p-3 md:p-4 rounded-xl md:rounded-2xl bg-black/20 border border-white/10 flex items-center justify-between gap-3 transition-all hover:border-orange-400/30">
+                      <div className="flex items-center gap-2 md:gap-3 min-w-0">
+                        <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-orange-500/15 flex items-center justify-center text-orange-300 flex-shrink-0">
+                          <Users className="w-4 h-4 md:w-5 md:h-5" />
                         </div>
-                        <div>
-                          <p className="font-semibold text-sm">{trader.name}</p>
-                          <p className="text-[10px] text-white/40 uppercase tracking-widest">{trader.followers} Followers</p>
+                        <div className="min-w-0">
+                          <p className="font-semibold text-xs md:text-sm truncate">{trader.name}</p>
+                          <p className="text-[8px] md:text-[10px] text-white/40 uppercase tracking-widest truncate">{trader.followers} Followers</p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-orange-300 font-bold">{trader.yield}</p>
-                        <p className="text-[10px] text-white/40">Yield</p>
+                      <div className="text-right flex-shrink-0">
+                        <p className="text-orange-300 font-bold text-sm md:text-base">{trader.yield}</p>
+                        <p className="text-[8px] md:text-[10px] text-white/40">Yield</p>
                       </div>
                     </div>
                   ))}
-                  <Button className="w-full mt-4 bg-orange-500/15 border border-orange-400/20 text-orange-100 hover:bg-orange-500/10 h-12 rounded-xl">
-                    <Plus className="w-4 h-4 mr-2" /> Add Master Account
+                  <Button className="w-full mt-3 md:mt-4 bg-orange-500/15 border border-orange-400/20 text-orange-100 hover:bg-orange-500/10 h-10 md:h-12 rounded-lg md:rounded-xl text-sm md:text-base">
+                    <Plus className="w-3 h-3 md:w-4 md:h-4 mr-2" /> Add Master Account
                   </Button>
                 </CardContent>
               </Card>
@@ -250,18 +321,18 @@ export default function AdminDashboard() {
 
           {/* BRANDING */}
           <TabsContent value="branding" className="space-y-6">
-            <Card className="bg-white/5 border-white/10 text-white p-8 rounded-[32px]">
+            <Card className="bg-white/5 border-white/10 text-white p-4 md:p-8 rounded-2xl md:rounded-[32px]">
               <CardHeader className="px-0 pt-0">
-                <CardTitle className="text-2xl font-headline">Institutional Identity</CardTitle>
+                <CardTitle className="text-lg md:text-2xl font-headline">Institutional Identity</CardTitle>
               </CardHeader>
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-6 mt-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                   <div className="space-y-2">
                     <Label className="text-white/40 text-xs uppercase tracking-widest font-bold">Logo URL (Dynamic Sync)</Label>
                     <Input 
                       value={content.branding.logoUrl}
                       onChange={(e) => setContent({ ...content, branding: { ...content.branding, logoUrl: e.target.value }})}
-                      className="bg-black/40 border-white/10 h-12"
+                      className="bg-black/40 border-white/10 h-10 md:h-12 text-sm"
                       placeholder="/logo.png"
                     />
                   </div>
@@ -270,7 +341,7 @@ export default function AdminDashboard() {
                     <Input 
                       value={content.branding.siteName}
                       onChange={(e) => setContent({ ...content, branding: { ...content.branding, siteName: e.target.value }})}
-                      className="bg-black/40 border-white/10 h-12"
+                      className="bg-black/40 border-white/10 h-10 md:h-12 text-sm"
                     />
                   </div>
                 </div>
@@ -283,31 +354,31 @@ export default function AdminDashboard() {
 
           {/* SECTIONS EDITOR */}
           <TabsContent value="hero" className="space-y-6">
-            <div className="grid grid-cols-1 gap-8">
+            <div className="grid grid-cols-1 gap-6 md:gap-8">
               {/* Hero Section */}
-              <Card className="bg-white/5 border-white/10 text-white p-8 rounded-[32px]">
+              <Card className="bg-white/5 border-white/10 text-white p-4 md:p-8 rounded-2xl md:rounded-[32px]">
                 <CardHeader className="px-0 pt-0">
                   <div className="flex items-center gap-3">
-                    <Globe className="w-6 h-6 text-primary" />
-                    <CardTitle className="text-2xl font-headline">Hero Content</CardTitle>
+                    <Globe className="w-5 h-5 md:w-6 md:h-6 text-primary" />
+                    <CardTitle className="text-lg md:text-2xl font-headline">Hero Content</CardTitle>
                   </div>
                 </CardHeader>
-                <div className="space-y-6">
+                <div className="space-y-6 mt-4">
                   <div className="space-y-2">
                     <Label className="text-white/40 text-xs uppercase tracking-widest font-bold">Main Headline</Label>
                     <Textarea 
                       value={content.hero.title}
                       onChange={(e) => setContent({ ...content, hero: { ...content.hero, title: e.target.value }})}
-                      className="bg-black/40 border-white/10 min-h-[100px] text-lg font-bold"
+                      className="bg-black/40 border-white/10 min-h-[80px] md:min-h-[100px] text-sm md:text-base font-bold"
                     />
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                     <div className="space-y-2">
                       <Label className="text-white/40 text-xs uppercase tracking-widest font-bold">Dashboard Image URL</Label>
                       <Input 
                         value={content.hero.imageUrl}
                         onChange={(e) => setContent({ ...content, hero: { ...content.hero, imageUrl: e.target.value }})}
-                        className="bg-black/40 border-white/10 h-12"
+                        className="bg-black/40 border-white/10 h-10 md:h-12 text-sm"
                       />
                     </div>
                     <div className="space-y-2">
@@ -315,7 +386,7 @@ export default function AdminDashboard() {
                       <Textarea 
                         value={content.hero.description}
                         onChange={(e) => setContent({ ...content, hero: { ...content.hero, description: e.target.value }})}
-                        className="bg-black/40 border-white/10 h-12"
+                        className="bg-black/40 border-white/10 h-10 md:h-12 text-sm"
                       />
                     </div>
                   </div>
@@ -323,21 +394,21 @@ export default function AdminDashboard() {
               </Card>
 
               {/* Copy Trading Section */}
-              <Card className="bg-white/5 border-white/10 text-white p-8 rounded-[32px]">
+              <Card className="bg-white/5 border-white/10 text-white p-4 md:p-8 rounded-2xl md:rounded-[32px]">
                 <CardHeader className="px-0 pt-0">
                   <div className="flex items-center gap-3">
-                    <TrendingUp className="w-6 h-6 text-primary" />
-                    <CardTitle className="text-2xl font-headline">Copy Trading Landing</CardTitle>
+                    <TrendingUp className="w-5 h-5 md:w-6 md:h-6 text-primary" />
+                    <CardTitle className="text-lg md:text-2xl font-headline">Copy Trading Landing</CardTitle>
                   </div>
                 </CardHeader>
-                <div className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-6 mt-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                     <div className="space-y-2">
                       <Label className="text-white/40 text-xs uppercase tracking-widest font-bold">Section Title</Label>
                       <Input 
                         value={content.copyTrading.title}
                         onChange={(e) => setContent({ ...content, copyTrading: { ...content.copyTrading, title: e.target.value }})}
-                        className="bg-black/40 border-white/10 h-12 font-bold"
+                        className="bg-black/40 border-white/10 h-10 md:h-12 font-bold text-sm"
                       />
                     </div>
                     <div className="space-y-2">
@@ -345,7 +416,7 @@ export default function AdminDashboard() {
                       <Input 
                         value={content.copyTrading.videoUrl}
                         onChange={(e) => setContent({ ...content, copyTrading: { ...content.copyTrading, videoUrl: e.target.value }})}
-                        className="bg-black/40 border-white/10 h-12"
+                        className="bg-black/40 border-white/10 h-10 md:h-12 text-sm"
                       />
                     </div>
                   </div>
@@ -354,7 +425,7 @@ export default function AdminDashboard() {
                     <Textarea 
                       value={content.copyTrading.description}
                       onChange={(e) => setContent({ ...content, copyTrading: { ...content.copyTrading, description: e.target.value }})}
-                      className="bg-black/40 border-white/10 min-h-[80px]"
+                      className="bg-black/40 border-white/10 min-h-[80px] text-sm"
                     />
                   </div>
                 </div>
@@ -364,17 +435,17 @@ export default function AdminDashboard() {
 
           {/* PACKAGES */}
           <TabsContent value="packages" className="space-y-6">
-             <Card className="bg-white/5 border-white/10 text-white p-8 rounded-[32px]">
+             <Card className="bg-white/5 border-white/10 text-white p-4 md:p-8 rounded-2xl md:rounded-[32px]">
               <CardHeader className="px-0 pt-0">
-                <CardTitle className="text-2xl font-headline">Academy Header</CardTitle>
+                <CardTitle className="text-lg md:text-2xl font-headline">Academy Header</CardTitle>
               </CardHeader>
-              <div className="space-y-6">
+              <div className="space-y-6 mt-4">
                 <div className="space-y-2">
                   <Label className="text-white/40 text-xs uppercase tracking-widest font-bold">Institute Name</Label>
                   <Input 
                     value={content.packages.instituteName}
                     onChange={(e) => setContent({ ...content, packages: { ...content.packages, instituteName: e.target.value }})}
-                    className="bg-black/40 border-white/10 h-12"
+                    className="bg-black/40 border-white/10 h-10 md:h-12 text-sm"
                   />
                 </div>
                 <div className="space-y-2">
@@ -382,7 +453,7 @@ export default function AdminDashboard() {
                   <Input 
                     value={content.packages.subtitle}
                     onChange={(e) => setContent({ ...content, packages: { ...content.packages, subtitle: e.target.value }})}
-                    className="bg-black/40 border-white/10 h-12"
+                    className="bg-black/40 border-white/10 h-10 md:h-12 text-sm"
                   />
                 </div>
               </div>
@@ -391,26 +462,26 @@ export default function AdminDashboard() {
 
           {/* REFERRAL */}
           <TabsContent value="referral" className="space-y-6">
-            <Card className="bg-white/5 border-white/10 text-white p-8 rounded-[32px]">
+            <Card className="bg-white/5 border-white/10 text-white p-4 md:p-8 rounded-2xl md:rounded-[32px]">
               <CardHeader className="px-0 pt-0">
-                <CardTitle className="text-2xl font-headline">Affiliate Marketing</CardTitle>
+                <CardTitle className="text-lg md:text-2xl font-headline">Affiliate Marketing</CardTitle>
               </CardHeader>
-              <div className="space-y-6">
+              <div className="space-y-6 mt-4">
                 <div className="space-y-2">
                   <Label className="text-white/40 text-xs uppercase tracking-widest font-bold">Section Heading</Label>
                   <Input 
                     value={content.referral.title}
                     onChange={(e) => setContent({ ...content, referral: { ...content.referral, title: e.target.value }})}
-                    className="bg-black/40 border-white/10 h-12"
+                    className="bg-black/40 border-white/10 h-10 md:h-12 text-sm"
                   />
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                   <div className="space-y-2">
                     <Label className="text-white/40 text-xs uppercase tracking-widest font-bold">Structure Image URL</Label>
                     <Input 
                       value={content.referral.imageUrl}
                       onChange={(e) => setContent({ ...content, referral: { ...content.referral, imageUrl: e.target.value }})}
-                      className="bg-black/40 border-white/10 h-12"
+                      className="bg-black/40 border-white/10 h-10 md:h-12 text-sm"
                     />
                   </div>
                   <div className="space-y-2">
@@ -418,7 +489,7 @@ export default function AdminDashboard() {
                     <Textarea 
                       value={content.referral.description}
                       onChange={(e) => setContent({ ...content, referral: { ...content.referral, description: e.target.value }})}
-                      className="bg-black/40 border-white/10 min-h-[100px]"
+                      className="bg-black/40 border-white/10 min-h-[80px] md:min-h-[100px] text-sm"
                     />
                   </div>
                 </div>

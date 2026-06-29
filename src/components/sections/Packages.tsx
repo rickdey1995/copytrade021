@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-
+import { safeJson } from '@/lib/utils';
 
 const programs = [
   {
@@ -84,9 +84,11 @@ export default function Packages() {
     const fetchContent = async () => {
       try {
         const response = await fetch('/api/content', { cache: 'no-store' });
-        const data = await response.json();
-        if (response.ok && data.success && data.content?.packages) {
+        const data = await safeJson(response);
+        if (response.ok && data?.success && data.content?.packages) {
           setContent(data.content.packages);
+        } else if (!response.ok) {
+          console.warn('Packages content fetch failed', response.status, data);
         }
       } catch (error) {
         console.error('Error fetching packages content:', error);

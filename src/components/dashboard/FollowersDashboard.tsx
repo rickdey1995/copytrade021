@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { safeJson } from '@/lib/utils';
 
 type FollowerSummary = {
   id: string;
@@ -20,8 +21,8 @@ export default function FollowersDashboard() {
     const loadFollowers = async () => {
       try {
         const response = await fetch('/api/followers', { cache: 'no-store' });
-        const data = await response.json();
-        if (response.ok && data.success) {
+        const data = await safeJson(response);
+        if (response.ok && data?.success) {
           setFollowers(
             (data.followers || []).map((item: any) => ({
               id: item.id,
@@ -30,6 +31,8 @@ export default function FollowersDashboard() {
               performance: item.performance || '+0.00%',
             }))
           );
+        } else if (!response.ok) {
+          console.warn('Followers dashboard fetch failed', response.status, data);
         }
       } catch (error) {
         console.warn('Followers dashboard fetch failed:', error);

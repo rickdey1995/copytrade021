@@ -25,10 +25,15 @@ function parseJsonData(value: any) {
 }
 
 export async function GET() {
-  await ensureContentTable();
-  const rows = await query(`SELECT json_data FROM ${contentTable} WHERE id = ? LIMIT 1`, ['site']);
-  const content = rows.length ? parseJsonData(rows[0].json_data) : null;
-  return NextResponse.json({ success: true, content });
+  try {
+    await ensureContentTable();
+    const rows = await query(`SELECT json_data FROM ${contentTable} WHERE id = ? LIMIT 1`, ['site']);
+    const content = rows.length ? parseJsonData(rows[0].json_data) : null;
+    return NextResponse.json({ success: true, content });
+  } catch (error) {
+    console.error('Content fetch error:', error);
+    return NextResponse.json({ success: false, error: String(error) }, { status: 500 });
+  }
 }
 
 export async function POST(request: Request) {
@@ -37,12 +42,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: 'Invalid content payload.' }, { status: 400 });
   }
 
-  await ensureContentTable();
-  await query(`
-    INSERT INTO ${contentTable} (id, json_data)
-    VALUES (?, ?)
-    ON DUPLICATE KEY UPDATE json_data = VALUES(json_data)
-  `, ['site', JSON.stringify(payload)]);
+  try {
+    await ensureContentTable();
+    await query(`
+      INSERT INTO ${contentTable} (id, json_data)
+      VALUES (?, ?)
+      ON DUPLICATE KEY UPDATE json_data = VALUES(json_data)
+    `, ['site', JSON.stringify(payload)]);
 
-  return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Content save error:', error);
+    return NextResponse.json({ success: false, error: String(error) }, { status: 500 });
+  }
 }

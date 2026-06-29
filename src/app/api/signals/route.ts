@@ -135,26 +135,36 @@ async function acknowledgeSignal(signalId: string) {
 }
 
 export async function GET(request: Request) {
-  const url = new URL(request.url);
-  const followerKey = url.searchParams.get('followerKey') || undefined;
-  const pendingSignals = await fetchPendingSignals(followerKey);
+  try {
+    const url = new URL(request.url);
+    const followerKey = url.searchParams.get('followerKey') || undefined;
+    const pendingSignals = await fetchPendingSignals(followerKey);
 
-  return NextResponse.json({ success: true, signals: pendingSignals });
+    return NextResponse.json({ success: true, signals: pendingSignals });
+  } catch (error) {
+    console.error('Signals GET error:', error);
+    return NextResponse.json({ success: false, error: String(error) }, { status: 500 });
+  }
 }
 
 export async function POST(request: Request) {
-  const payload = await request.json().catch(() => ({}));
+  try {
+    const payload = await request.json().catch(() => ({}));
 
-  if (payload.action === 'ack' && payload.signalId) {
-    const acknowledged = await acknowledgeSignal(payload.signalId);
-    return NextResponse.json({ success: acknowledged, acknowledged: acknowledged, signalId: payload.signalId });
+    if (payload.action === 'ack' && payload.signalId) {
+      const acknowledged = await acknowledgeSignal(payload.signalId);
+      return NextResponse.json({ success: acknowledged, acknowledged: acknowledged, signalId: payload.signalId });
+    }
+
+    const signal = normalizeSignalPayload(payload);
+    if (!signal.currencyPair || !signal.direction) {
+      return NextResponse.json({ success: false, error: 'currencyPair and direction are required.' }, { status: 400 });
+    }
+
+    const saved = await savePendingSignal(signal);
+    return NextResponse.json({ success: true, signal: saved, message: 'Signal queued for MT5 bridge delivery.' });
+  } catch (error) {
+    console.error('Signals POST error:', error);
+    return NextResponse.json({ success: false, error: String(error) }, { status: 500 });
   }
-
-  const signal = normalizeSignalPayload(payload);
-  if (!signal.currencyPair || !signal.direction) {
-    return NextResponse.json({ success: false, error: 'currencyPair and direction are required.' }, { status: 400 });
-  }
-
-  const saved = await savePendingSignal(signal);
-  return NextResponse.json({ success: true, signal: saved, message: 'Signal queued for MT5 bridge delivery.' });
 }

@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Menu } from 'lucide-react';
+import { safeJson } from '@/lib/utils';
 
 export default function Navbar() {
   const [logoUrl, setLogoUrl] = useState("/igrow_logo footer - Copy.png");
@@ -16,9 +17,11 @@ export default function Navbar() {
     const fetchBranding = async () => {
       try {
         const response = await fetch('/api/content', { cache: 'no-store' });
-        const data = await response.json();
-        if (response.ok && data.success && data.content?.branding?.logoUrl) {
+        const data = await safeJson(response);
+        if (response.ok && data?.success && data.content?.branding?.logoUrl) {
           setLogoUrl(data.content.branding.logoUrl);
+        } else if (!response.ok) {
+          console.warn('Navbar branding fetch failed', response.status, data);
         }
       } catch (error) {
         console.error('Error fetching branding:', error);

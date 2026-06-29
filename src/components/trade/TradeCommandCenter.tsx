@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { safeJson } from '@/lib/utils';
 
 const symbols = [
   'EUR/USD',
@@ -79,13 +80,15 @@ export function TradeCommandCenter({ showFollowerTerminal = true }: TradeCommand
     const fetchLiveQuote = async () => {
       try {
         const response = await fetch(`/api/market?symbol=${encodeURIComponent(symbol)}&period=1m&limit=10`);
-        const data = await response.json();
-        if (!cancel && response.ok) {
+        const data = await safeJson(response);
+        if (!cancel && response.ok && data) {
           if (data.price) setLivePrice(Number(data.price).toFixed(5));
           if (data.change) setPriceChange(data.change);
           if (data.high) setPriceHigh(Number(data.high).toFixed(5));
           if (data.low) setPriceLow(Number(data.low).toFixed(5));
           setLastUpdated(data.updatedAt || new Date().toLocaleTimeString());
+        } else if (!cancel && !response.ok) {
+          console.warn('Market quote fetch failed', response.status, data);
         }
       } catch (error) {
         console.warn('Market data fetch failed:', error);
@@ -136,7 +139,7 @@ export function TradeCommandCenter({ showFollowerTerminal = true }: TradeCommand
         body: JSON.stringify(payload),
       });
 
-      const data = await response.json();
+      const data = await safeJson(response);
       if (!response.ok) {
         throw new Error(data?.message || 'Signal API error');
       }
@@ -161,8 +164,8 @@ export function TradeCommandCenter({ showFollowerTerminal = true }: TradeCommand
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: followerKey, name: followerKey, accountId: followerKey }),
       });
-      const data = await response.json();
-      if (!response.ok || !data.success) {
+      const data = await safeJson(response);
+      if (!response.ok || !data?.success) {
         throw new Error(data?.error || 'Follower registration failed');
       }
       setLogs((prev) => [`Registered follower ${followerKey}`, ...prev]);
@@ -177,8 +180,8 @@ export function TradeCommandCenter({ showFollowerTerminal = true }: TradeCommand
   const fetchFollowers = async () => {
     try {
       const response = await fetch('/api/followers', { cache: 'no-store' });
-      const data = await response.json();
-      if (response.ok && data.success) {
+      const data = await safeJson(response);
+      if (response.ok && data?.success) {
         setFollowerAccounts(data.followers || []);
       } else {
         throw new Error(data?.error || 'Unable to fetch followers');

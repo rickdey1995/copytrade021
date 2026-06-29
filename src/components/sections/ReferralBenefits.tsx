@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Users, TrendingUp } from 'lucide-react';
-
+import { safeJson } from '@/lib/utils';
 
 const levelBenefits = [
   { name: "GROW STAR", volume: "2.5 Lakh", reward: "3%", type: "Reward" },
@@ -29,9 +29,11 @@ export default function ReferralBenefits() {
     const fetchReferral = async () => {
       try {
         const response = await fetch('/api/content', { cache: 'no-store' });
-        const data = await response.json();
-        if (response.ok && data.success && data.content?.referral) {
+        const data = await safeJson(response);
+        if (response.ok && data?.success && data.content?.referral) {
           setData(data.content.referral);
+        } else if (!response.ok) {
+          console.warn('Referral content fetch failed', response.status, data);
         }
       } catch (error) {
         console.error('Error fetching referral content:', error);

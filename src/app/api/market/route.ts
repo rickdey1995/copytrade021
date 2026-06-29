@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { safeJson } from '@/lib/utils';
 
 function sanitizeSymbol(symbol: string) {
   return symbol.replace(/[\/\-\s]/g, '').toUpperCase();
@@ -78,10 +79,10 @@ export async function GET(request: Request) {
 
   try {
     const response = await fetch(url);
-    const data = await response.json();
+    const data = await safeJson(response);
     const candle = normalizeQuote(extractLastCandle(data));
 
-    if (!candle || candle.close === undefined || candle.open === undefined) {
+    if (!data || !candle || candle.close === undefined || candle.open === undefined) {
       return NextResponse.json({
         error: 'Unable to parse market data from provider response.',
         provider: { url, data: Array.isArray(data) ? data.slice(-3) : undefined },

@@ -14,21 +14,31 @@ export type Follower = {
 };
 
 export async function getFollowers(): Promise<Follower[]> {
-  return await query<Follower>(`
-    SELECT id, name, account_id AS accountId, followers_count AS followers, performance, equity, balance, open_trades AS openTrades, last_signal AS lastSignal, risk_level AS risk
-    FROM followers
-    ORDER BY followers_count DESC
-    LIMIT 200
-  `);
+  try {
+    return await query<Follower>(`
+      SELECT id, name, account_id AS accountId, followers_count AS followers, performance, equity, balance, open_trades AS openTrades, last_signal AS lastSignal, risk_level AS risk
+      FROM followers
+      ORDER BY followers_count DESC
+      LIMIT 200
+    `);
+  } catch (error) {
+    console.error('Failed to load followers:', error);
+    return [];
+  }
 }
 
 export async function getFollowerById(id: string): Promise<Follower | null> {
-  const results = await query<Follower>(`
-    SELECT id, name, account_id AS accountId, followers_count AS followers, performance, equity, balance, open_trades AS openTrades, last_signal AS lastSignal, risk_level AS risk
-    FROM followers
-    WHERE id = ?
-    LIMIT 1
-  `, [id]);
+  try {
+    const results = await query<Follower>(`
+      SELECT id, name, account_id AS accountId, followers_count AS followers, performance, equity, balance, open_trades AS openTrades, last_signal AS lastSignal, risk_level AS risk
+      FROM followers
+      WHERE id = ?
+      LIMIT 1
+    `, [id]);
 
-  return results.length ? results[0] : null;
+    return results.length ? results[0] : null;
+  } catch (error) {
+    console.error(`Failed to load follower ${id}:`, error);
+    return null;
+  }
 }
