@@ -5,8 +5,8 @@ import { Star, Globe, ShieldCheck, Fingerprint } from 'lucide-react';
 
 export default function Wealth() {
   return (
-    <section className="bg-[#080D1B] pt-0 pb-24 md:pt-0 md:pb-40 relative">
-      <div className="container mx-auto px-6 text-center">
+    <section className="bg-[#080D1B] -mt-10 md:-mt-36 pt-0 pb-24 md:pt-0 md:pb-40 relative">
+      <div className="container mx-auto px-6 text-center relative z-10 pt-12 md:pt-16">
         <div className="relative z-20 pb-16 md:pb-24">
           <div className="space-y-12 md:space-y-16">
             <div className="space-y-8">

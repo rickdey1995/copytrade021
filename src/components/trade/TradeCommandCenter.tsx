@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { RefreshCw, SignalLow } from 'lucide-react';
+import { Area, CartesianGrid, ComposedChart, Customized, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -28,7 +29,18 @@ const symbols = [
 ];
 const sides = ['BUY', 'SELL'];
 const orderTypes = ['Market', 'Limit', 'Stop'];
-const servers = ['Vantage Live 2', 'Vantage Live 1', 'Vantage Demo'];
+// fallback servers kept for UI before DB is available
+const fallbackServers = ['Vantage Live 2', 'Vantage Live 1', 'Vantage Demo'];
+
+type MasterServer = {
+  id: number;
+  name: string;
+  host: string;
+  port: number;
+  apiKey?: string | null;
+  description?: string | null;
+  active: number;
+};
 
 type FollowerAccount = {
   id: string;
@@ -41,6 +53,15 @@ type FollowerAccount = {
   openTrades: number;
   lastSignal: string;
   risk: string;
+};
+
+type CandleData = {
+  time: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  label: string;
 };
 
 type TradeCommandCenterProps = {
@@ -61,13 +82,17 @@ export function TradeCommandCenter({ showFollowerTerminal = true }: TradeCommand
   const [status, setStatus] = useState('Ready to send MT5 signals');
   const [sending, setSending] = useState(false);
   const [endpoint, setEndpoint] = useState('/api/signals');
-  const [activeServer, setActiveServer] = useState(servers[0]);
+  const [masters, setMasters] = useState<MasterServer[]>([]);
+  const [activeServer, setActiveServer] = useState<string>(fallbackServers[0]);
+  const [masterHost, setMasterHost] = useState<string>('');
   const [connected, setConnected] = useState(false);
   const [livePrice, setLivePrice] = useState('0.00000');
   const [priceChange, setPriceChange] = useState('+0.00%');
   const [priceHigh, setPriceHigh] = useState('0.00000');
   const [priceLow, setPriceLow] = useState('0.00000');
   const [lastUpdated, setLastUpdated] = useState('');
+  const [candles, setCandles] = useState<CandleData[]>([]);
+  const [chartError, setChartError] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -76,22 +101,68 @@ export function TradeCommandCenter({ showFollowerTerminal = true }: TradeCommand
   }, []);
 
   useEffect(() => {
+    const loadMasters = async () => {
+      try {
+        const res = await fetch('/api/admin/masters', { cache: 'no-store' });
+        const data = await safeJson(res);
+        if (res.ok && data?.success && Array.isArray(data.masters)) {
+          const activeMasters = data.masters.filter((m: MasterServer) => m.active == 1);
+          setMasters(activeMasters);
+          if (activeMasters.length) {
+            setActiveServer(String(activeMasters[0].id));
+            if (!masterHost) setMasterHost(activeMasters[0].host || '');
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to load master servers:', err);
+      }
+    };
+    loadMasters();
+  }, []);
+
+  useEffect(() => {
     let cancel = false;
     const fetchLiveQuote = async () => {
       try {
-        const response = await fetch(`/api/market?symbol=${encodeURIComponent(symbol)}&period=1m&limit=10`);
+        const response = await fetch(`/api/market?symbol=${encodeURIComponent(symbol)}&period=1m&limit=12`);
         const data = await safeJson(response);
+
         if (!cancel && response.ok && data) {
           if (data.price) setLivePrice(Number(data.price).toFixed(5));
           if (data.change) setPriceChange(data.change);
           if (data.high) setPriceHigh(Number(data.high).toFixed(5));
           if (data.low) setPriceLow(Number(data.low).toFixed(5));
           setLastUpdated(data.updatedAt || new Date().toLocaleTimeString());
+
+          if (Array.isArray(data.candles) && data.candles.length) {
+            const normalizedCandles = data.candles
+              .map((item: any) => ({
+                time: item.time,
+                open: Number(item.open),
+                high: Number(item.high),
+                low: Number(item.low),
+                close: Number(item.close),
+              }))
+              .filter((item) => !Number.isNaN(item.open) && !Number.isNaN(item.close) && !Number.isNaN(item.high) && !Number.isNaN(item.low))
+              .map((item: any) => ({
+                ...item,
+                label: item.time
+                  ? new Date(item.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                  : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              }));
+
+            setCandles(normalizedCandles);
+            setChartError(null);
+          } else {
+            setChartError('Live chart data is not available yet.');
+          }
         } else if (!cancel && !response.ok) {
           console.warn('Market quote fetch failed', response.status, data);
+          setChartError('Live market chart fetch failed.');
         }
       } catch (error) {
         console.warn('Market data fetch failed:', error);
+        setChartError('Unable to load live market chart.');
       }
     };
 
@@ -106,7 +177,9 @@ export function TradeCommandCenter({ showFollowerTerminal = true }: TradeCommand
   const handleConnect = () => {
     setConnected(true);
     setStatus('Master node connected');
-    setLogs((prev) => [`Connected to ${activeServer}`, ...prev]);
+    const selected = masters.find((m) => String(m.id) === String(activeServer));
+    const endpointName = masterHost ? masterHost : selected ? selected.name : activeServer;
+    setLogs((prev) => [`Connected to ${endpointName}`, ...prev]);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -203,7 +276,7 @@ export function TradeCommandCenter({ showFollowerTerminal = true }: TradeCommand
             <CardHeader className="p-6 bg-[#081421] border-b border-white/10">
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.35em] text-white/40">Vantage Setup</p>
+                  <p className="text-xs uppercase tracking-[0.35em] text-white/40">Master Setup</p>
                   <CardTitle className="text-3xl font-semibold text-white">Command Center</CardTitle>
                 </div>
                 <div className="inline-flex items-center gap-2 rounded-full bg-white/5 px-4 py-2 text-sm text-white/70 border border-white/10">
@@ -216,7 +289,7 @@ export function TradeCommandCenter({ showFollowerTerminal = true }: TradeCommand
               <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label className="text-white/60">Vantage Login ID</Label>
+                    <Label className="text-white/60">Master Login ID</Label>
                     <Input className="bg-[#0B172D] border-white/10 h-14 rounded-2xl text-white" placeholder="25448936" />
                   </div>
                   <div className="space-y-2">
@@ -227,19 +300,13 @@ export function TradeCommandCenter({ showFollowerTerminal = true }: TradeCommand
 
                 <div className="grid gap-4">
                   <div className="space-y-2">
-                    <Label className="text-white/60">Vantage Server</Label>
-                    <Select value={activeServer} onValueChange={setActiveServer}>
-                      <SelectTrigger className="bg-[#0B172D] border-white/10 h-14 rounded-2xl text-white px-4 text-sm">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="bg-[#091723] border-white/10 text-white rounded-2xl p-2">
-                        {servers.map((server) => (
-                          <SelectItem key={server} value={server} className="rounded-xl py-2 px-4">
-                            {server}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Label className="text-white/60">Master Host</Label>
+                    <Input
+                      value={masterHost}
+                      onChange={(e) => setMasterHost(e.target.value)}
+                      placeholder="e.g. api.vantage.example or https://master.example"
+                      className="bg-[#0B172D] border-white/10 h-14 rounded-2xl text-white"
+                    />
                   </div>
                   <Button type="button" className={`h-14 rounded-2xl text-sm font-semibold ${connected ? 'bg-emerald-400 text-black' : 'bg-rose-500 text-white'}`} onClick={handleConnect}>
                     {connected ? 'Connected' : 'Connect Master Node'}
@@ -366,6 +433,96 @@ export function TradeCommandCenter({ showFollowerTerminal = true }: TradeCommand
                       <span className="text-base font-semibold">1m</span>
                       <span className="text-sm text-white/50">Live</span>
                     </div>
+                  </div>
+                </div>
+
+                <div className="mt-6 rounded-[24px] bg-[#08131F] border border-white/10 p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.35em] text-white/40">Live Candlestick Chart</p>
+                      <p className="mt-1 text-sm text-white/70">Auto-refreshes every 15 seconds.</p>
+                    </div>
+                    {chartError ? (
+                      <p className="text-rose-300 text-xs">{chartError}</p>
+                    ) : (
+                      <p className="text-emerald-300 text-xs">{candles.length ? `${candles.length} bars loaded` : 'Loading chart...'}</p>
+                    )}
+                  </div>
+
+                  <div className="mt-4 h-48 min-h-[180px] rounded-3xl bg-black/10 p-2">
+                    {candles.length ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <ComposedChart data={candles} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
+                          <CartesianGrid stroke="#1d2b42" strokeDasharray="3 3" vertical={false} />
+                          <XAxis dataKey="label" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} minTickGap={14} />
+                          <YAxis domain={['dataMin', 'dataMax']} tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} width={50} />
+                          <Tooltip
+                            formatter={(value: any) => (typeof value === 'number' ? value.toFixed(5) : value)}
+                            cursor={{ stroke: '#94a3b8', strokeDasharray: '3 3' }}
+                            contentStyle={{ background: '#020617', borderColor: '#334155', color: '#fff' }}
+                          />
+                          <Customized component={({ xAxisMap, yAxisMap }: any) => {
+                            const xAxisKey = Object.keys(xAxisMap)[0];
+                            const yAxisKey = Object.keys(yAxisMap)[0];
+                            const xAxis = xAxisMap[xAxisKey];
+                            const yAxis = yAxisMap[yAxisKey];
+
+                            if (!xAxis || !yAxis || typeof xAxis.scale !== 'function' || typeof yAxis.scale !== 'function') {
+                              return null;
+                            }
+
+                            const bandwidth = typeof xAxis.bandwidth === 'function' ? xAxis.bandwidth() : xAxis.bandwidth || 12;
+
+                            return (
+                              <g>
+                                {candles.map((entry, index) => {
+                                  const x = xAxis.scale(entry.label);
+                                  const yOpen = yAxis.scale(entry.open);
+                                  const yClose = yAxis.scale(entry.close);
+                                  const yHigh = yAxis.scale(entry.high);
+                                  const yLow = yAxis.scale(entry.low);
+
+                                  // basic guards: skip drawing if any coordinate is not a finite number
+                                  if (
+                                    !Number.isFinite(x) ||
+                                    !Number.isFinite(yOpen) ||
+                                    !Number.isFinite(yClose) ||
+                                    !Number.isFinite(yHigh) ||
+                                    !Number.isFinite(yLow)
+                                  ) {
+                                    return null;
+                                  }
+
+                                  const xpos = x + bandwidth / 2;
+                                  const bodyTop = Math.min(yOpen, yClose);
+                                  const bodyHeight = Math.max(2, Math.abs(yOpen - yClose));
+                                  const barColor = entry.close >= entry.open ? '#4ade80' : '#fb7185';
+                                  const candleWidth = Math.max(6, bandwidth * 0.45);
+
+                                  return (
+                                    <g key={`candle-${index}`}>
+                                      <line x1={xpos} y1={yHigh} x2={xpos} y2={yLow} stroke={barColor} strokeWidth={1.5} />
+                                      <rect
+                                        x={xpos - candleWidth / 2}
+                                        y={bodyTop}
+                                        width={candleWidth}
+                                        height={bodyHeight}
+                                        fill={barColor}
+                                        opacity={0.85}
+                                      />
+                                    </g>
+                                  );
+                                })}
+                              </g>
+                            );
+                          }} />
+                        </ComposedChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-sm text-white/50">
+                        Live chart unavailable. Check provider settings in your .env file.
+                      </div>
+                    )}
                   </div>
                 </div>
 

@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { Home, BarChart3, MessageCircle, Settings } from 'lucide-react';
 import { safeJson } from '@/lib/utils';
 
 export default function Footer() {
@@ -81,6 +82,27 @@ export default function Footer() {
             <Link href="#" className="hover:text-white transition-colors">Twitter</Link>
             <Link href="#" className="hover:text-white transition-colors">Discord</Link>
             <Link href="#" className="hover:text-white transition-colors">GitHub</Link>
+          </div>
+        </div>
+
+        <div className="mt-10 block md:hidden">
+          <div className="grid grid-cols-4 gap-2 rounded-3xl border border-white/10 bg-white/5 p-2">
+            <Link href="#" className="flex flex-col items-center justify-center gap-1 rounded-2xl px-2 py-3 text-center text-white/80 hover:bg-white/10 hover:text-white">
+              <Home className="h-5 w-5" />
+              <span className="text-[10px] uppercase tracking-[0.2em]">Home</span>
+            </Link>
+            <Link href="#market" className="flex flex-col items-center justify-center gap-1 rounded-2xl px-2 py-3 text-center text-white/80 hover:bg-white/10 hover:text-white">
+              <BarChart3 className="h-5 w-5" />
+              <span className="text-[10px] uppercase tracking-[0.2em]">Market</span>
+            </Link>
+            <Link href="#" className="flex flex-col items-center justify-center gap-1 rounded-2xl px-2 py-3 text-center text-white/80 hover:bg-white/10 hover:text-white">
+              <MessageCircle className="h-5 w-5" />
+              <span className="text-[10px] uppercase tracking-[0.2em]">Support</span>
+            </Link>
+            <Link href="#" className="flex flex-col items-center justify-center gap-1 rounded-2xl px-2 py-3 text-center text-white/80 hover:bg-white/10 hover:text-white">
+              <Settings className="h-5 w-5" />
+              <span className="text-[10px] uppercase tracking-[0.2em]">More</span>
+            </Link>
           </div>
         </div>
       </div>

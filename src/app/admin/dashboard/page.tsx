@@ -14,7 +14,6 @@ import { safeJson } from '@/lib/utils';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { TradeBridgeTerminal } from '@/components/TradeBridgeTerminal';
 import FollowersDashboard from '@/components/dashboard/FollowersDashboard';
 import {
   LayoutDashboard,
@@ -44,6 +43,7 @@ export default function AdminDashboard() {
   const [fetching, setFetching] = useState(true);
   const [dbError, setDbError] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('trading');
   const router = useRouter();
   const { toast } = useToast();
 
@@ -240,7 +240,7 @@ export default function AdminDashboard() {
         </div>
       </header>
 
-      <main className="container mx-auto py-6 sm:py-12 px-3 sm:px-6 flex-1 max-w-6xl w-full">
+      <main className="container mx-auto py-6 sm:py-12 px-3 sm:px-6 flex-1 max-w-6xl w-full pb-28">
         {dbError && (
           <Alert variant="destructive" className="mb-8 bg-destructive/10 border-destructive/20 text-destructive">
             <AlertCircle className="h-4 w-4" />
@@ -251,7 +251,7 @@ export default function AdminDashboard() {
           </Alert>
         )}
 
-        <Tabs defaultValue="trading" className="space-y-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="bg-white/5 border border-white/10 p-1 rounded-xl h-auto md:h-14 w-full justify-start overflow-x-auto overflow-y-hidden no-scrollbar flex-wrap md:flex-nowrap">
             <TabsTrigger value="trading" className="data-[state=active]:bg-primary data-[state=active]:text-black rounded-lg h-10 md:h-full flex items-center gap-1 md:gap-2 px-3 md:px-6 text-xs md:text-sm flex-shrink-0">
               <Terminal className="w-3 h-3 md:w-4 md:h-4" /> <span className="hidden sm:inline">Trading Terminal</span><span className="sm:hidden">Trading</span>
@@ -276,13 +276,18 @@ export default function AdminDashboard() {
               <Card className="lg:col-span-2 bg-white/5 border border-white/10 text-white rounded-2xl md:rounded-[32px] shadow-xl shadow-black/20 overflow-hidden">
                 <CardHeader className="p-4 md:p-8 border-b border-white/5 bg-black/10 backdrop-blur-xl">
                   <div className="flex flex-col gap-3 md:gap-4">
-                    <CardTitle className="text-lg md:text-2xl font-headline">Live Mirror Status</CardTitle>
-                    <Badge className="bg-orange-500/15 text-orange-300 border-none w-fit text-xs md:text-sm">Execution Engine Online</Badge>
+                    <CardTitle className="text-lg md:text-2xl font-headline">Open Terminal</CardTitle>
+                    <Badge className="bg-orange-500/15 text-orange-300 border-none w-fit text-xs md:text-sm">Use the standalone terminal only</Badge>
                   </div>
                 </CardHeader>
-                <CardContent className="p-3 md:p-6 bg-black/10 overflow-x-auto">
-                  <div className="min-h-[300px]">
-                    <TradeBridgeTerminal showFollowerTerminal={false} />
+                <CardContent className="p-3 md:p-6 bg-black/10">
+                  <div className="min-h-[300px] flex flex-col items-center justify-center gap-4 text-center">
+                    <p className="max-w-2xl text-sm text-white/70">
+                      The embedded trading terminal has been removed. To access the full terminal interface, open the standalone terminal window.
+                    </p>
+                    <Button className="bg-primary text-black px-6 py-3 rounded-2xl text-sm font-semibold" onClick={() => router.push('/terminal')}>
+                      Open Terminal
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -498,6 +503,40 @@ export default function AdminDashboard() {
           </TabsContent>
         </Tabs>
       </main>
+
+      <nav className="fixed inset-x-0 bottom-0 z-50 md:hidden bg-[#020617]/95 border-t border-white/10 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveTab('trading')}
+            className={
+              activeTab === 'trading'
+                ? 'flex-1 rounded-2xl bg-white/10 px-3 py-2 text-xs font-semibold text-white'
+                : 'flex-1 rounded-2xl px-3 py-2 text-xs text-white/70 hover:bg-white/5'
+            }
+          >
+            Trading
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('branding')}
+            className={
+              activeTab === 'branding'
+                ? 'flex-1 rounded-2xl bg-white/10 px-3 py-2 text-xs font-semibold text-white'
+                : 'flex-1 rounded-2xl px-3 py-2 text-xs text-white/70 hover:bg-white/5'
+            }
+          >
+            Branding
+          </button>
+          <button
+            type="button"
+            onClick={() => router.push('/terminal')}
+            className="flex-1 rounded-2xl bg-primary px-3 py-2 text-xs font-semibold text-black"
+          >
+            Terminal
+          </button>
+        </div>
+      </nav>
     </div>
   );
 }

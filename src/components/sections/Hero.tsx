@@ -41,11 +41,22 @@ export default function Hero() {
   return (
     <section 
       className="relative w-full m-0 p-0 overflow-visible min-h-[90vh] flex flex-col"
-      style={{ background: 'linear-gradient(to bottom, #080D1B 0%, #0A1122 100%)' }}
+      style={{ 
+        backgroundImage: 'url(/Group\ 2.png)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundAttachment: 'fixed'
+      }}
     >
-      <div className="relative z-10 w-full flex-1 flex flex-col items-center justify-center pt-32 md:pt-40 pb-0">
+      {/* Gradient overlay */}
+      <div 
+        className="absolute inset-0 z-0" 
+        style={{ background: 'linear-gradient(to bottom, #080D1B 0%, #273D5D 30%, #A3B3CA 70%, #EFEFEF 100%)' }}
+      />
+      
+      <div className="relative z-10 w-full flex-1 flex flex-col items-center justify-center pt-24 md:pt-18 pb-0">
         <div className="container mx-auto px-6 text-center">
-          <div className="max-w-[95rem] mx-auto space-y-8 md:space-y-12">
+          <div className="max-w-[95rem] mx-auto space-y- md:space-y-04">
             <h1 className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-headline font-bold leading-[1.2] tracking-normal text-white">
               {data.title.split('<br />').map((line, i) => (
                 <span key={i} className="block">{line}</span>
@@ -64,7 +75,7 @@ export default function Hero() {
         </div>
       </div>
 
-      <div className="w-full px-0 mx-0 mt-8 pb-0">
+      <div className="w-full px-0 mx-0 mt-0 pb-0">
         <div className="relative w-full overflow-hidden">
           <Image
             src={data.imageUrl}
@@ -76,6 +87,18 @@ export default function Hero() {
             quality={100}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-[#080D1B] via-transparent to-transparent opacity-80 pointer-events-none" />
+        </div>
+        
+        {/* Gradient transition image */}
+        <div className="relative w-full overflow-hidden">
+          <Image
+            src="/Gradient.png"
+            alt="Gradient Transition"
+            width={2560}
+            height={400}
+            className="w-full h-auto block"
+            quality={100}
+          />
         </div>
       </div>
     </section>

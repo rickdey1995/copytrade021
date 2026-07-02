@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { ArrowRight, ChevronLeft, ChevronRight, TrendingUp, Flame, Activity } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -85,6 +85,74 @@ export default function MarketCatalog() {
   const scrollNext = useCallback(() => {
     if (emblaApi) emblaApi.scrollNext();
   }, [emblaApi]);
+
+  function LiveMarket({ symbol, stroke }: { symbol: string; stroke: string }) {
+    const [data, setData] = useState<any>(null);
+
+    useEffect(() => {
+      let mounted = true;
+      const load = async () => {
+        try {
+          const res = await fetch(`/api/market?symbol=${encodeURIComponent(symbol + '/USD')}&period=1m&limit=30`);
+          const json = await res.json();
+          if (mounted && res.ok) setData(json);
+        } catch (e) {
+          // ignore
+        }
+      };
+      load();
+      const id = setInterval(load, 15000);
+      return () => {
+        mounted = false;
+        clearInterval(id);
+      };
+    }, [symbol]);
+
+    if (!data || !Array.isArray(data.candles)) {
+      return <div className="w-full h-full flex items-center justify-center text-white/40">Live data unavailable</div>;
+    }
+
+    const candles = data.candles;
+    const allPrices = candles.flatMap((c: any) => [c.high, c.low, c.open, c.close]).filter(Number.isFinite);
+    const min = Math.min(...allPrices);
+    const max = Math.max(...allPrices);
+
+    const width = 800; const height = 320; const padding = 8;
+    const count = candles.length;
+    const step = (width - padding * 2) / Math.max(1, count - 1);
+
+    return (
+      <div className="w-full h-full text-white/80">
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-lg font-bold">{symbol}/USD</div>
+          <div className="text-right">
+            <div className="text-2xl font-semibold">{data.price}</div>
+            <div className={`text-sm ${String(data.change).startsWith('-') ? 'text-rose-400' : 'text-emerald-300'}`}>{data.change}</div>
+          </div>
+        </div>
+        <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full">
+          {candles.map((c: any, i: number) => {
+            const x = padding + i * step;
+            const yOpen = height - padding - ((c.open - min) / (max - min || 1)) * (height - padding * 2);
+            const yClose = height - padding - ((c.close - min) / (max - min || 1)) * (height - padding * 2);
+            const yHigh = height - padding - ((c.high - min) / (max - min || 1)) * (height - padding * 2);
+            const yLow = height - padding - ((c.low - min) / (max - min || 1)) * (height - padding * 2);
+            const candleWidth = Math.max(4, step * 0.6);
+            const bodyTop = Math.min(yOpen, yClose);
+            const bodyHeight = Math.max(1, Math.abs(yClose - yOpen));
+            const color = c.close >= c.open ? '#4ade80' : '#fb7185';
+
+            return (
+              <g key={i}>
+                <line x1={x} x2={x} y1={yHigh} y2={yLow} stroke={color} strokeWidth={1.5} />
+                <rect x={x - candleWidth / 2} y={bodyTop} width={candleWidth} height={bodyHeight} fill={color} opacity={0.9} />
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+    );
+  }
 
   return (
     <section id="market" className="pt-16 md:pt-24 pb-12 relative overflow-hidden">
@@ -216,41 +284,14 @@ export default function MarketCatalog() {
                     </div>
 
                     <div className="h-48 md:h-72 w-full bg-[#080D1B] rounded-[20px] md:rounded-[32px] border border-white/10 p-4 md:p-10 relative group overflow-hidden">
-                       <div className="absolute inset-0 opacity-10 group-hover:opacity-20 transition-opacity">
-                          <svg className="w-full h-full" width="100%" height="100%">
-                            <pattern id="grid-popup" width="30" height="30" patternUnits="userSpaceOnUse">
-                              <path d="M 30 0 L 0 0 0 30" fill="none" stroke="white" strokeWidth="0.5"/>
-                            </pattern>
-                            <rect width="100%" height="100%" fill="url(#grid-popup)" />
-                          </svg>
-                       </div>
-                       <svg viewBox="0 0 100 100" className="w-full h-full relative z-10" preserveAspectRatio="none">
-                          <defs>
-                            <linearGradient id={`popup-gradient-${idx}`} x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor={asset.stroke} stopOpacity="0.4" />
-                              <stop offset="100%" stopColor={asset.stroke} stopOpacity="0" />
-                            </linearGradient>
-                          </defs>
-                          <path
-                            d={`${asset.line} L 100 100 L 0 100 Z`}
-                            fill={`url(#popup-gradient-${idx})`}
-                          />
-                          <path
-                            d={asset.line}
-                            fill="none"
-                            stroke={asset.stroke}
-                            strokeWidth="1.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                        <div className="absolute top-4 right-4 md:top-6 md:right-8 flex gap-1 md:gap-2">
-                           {['1H', '24H', '1W'].map(time => (
-                             <Button key={time} variant="ghost" size="sm" className={`h-6 md:h-8 rounded-lg text-[8px] md:text-[10px] font-bold tracking-widest px-2 md:px-3 ${time === '24H' ? 'bg-primary text-black' : 'bg-white/5 text-white/50'}`}>
-                               {time}
-                             </Button>
-                           ))}
-                        </div>
+                      <LiveMarket symbol={asset.symbol} stroke={asset.stroke} />
+                      <div className="absolute top-4 right-4 md:top-6 md:right-8 flex gap-1 md:gap-2">
+                        {['1H', '24H', '1W'].map(time => (
+                          <Button key={time} variant="ghost" size="sm" className={`h-6 md:h-8 rounded-lg text-[8px] md:text-[10px] font-bold tracking-widest px-2 md:px-3 ${time === '24H' ? 'bg-primary text-black' : 'bg-white/5 text-white/50'}`}>
+                            {time}
+                          </Button>
+                        ))}
+                      </div>
                     </div>
 
                     <div className="flex flex-col sm:flex-row gap-3 md:gap-4">

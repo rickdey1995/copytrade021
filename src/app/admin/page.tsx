@@ -11,6 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 
 export default function AdminLogin() {
   const [password, setPassword] = useState('');
+  const [username, setUsername] = useState('admin');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
@@ -26,12 +27,23 @@ export default function AdminLogin() {
     e.preventDefault();
     setLoading(true);
 
-    if (password === (process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'admin123')) {
-      localStorage.setItem('igrow_admin_token', 'authenticated');
-      toast({ title: "Authorized", description: "Terminal session initiated." });
-      router.replace('/admin/dashboard');
-    } else {
-      toast({ variant: "destructive", title: "Access Denied", description: "Security key verification failed." });
+    try {
+      const response = await fetch('/api/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        localStorage.setItem('igrow_admin_token', 'authenticated');
+        toast({ title: 'Authorized', description: 'Terminal session initiated.' });
+        router.replace('/admin/dashboard');
+      } else {
+        toast({ variant: 'destructive', title: 'Access Denied', description: data.error || 'Security key verification failed.' });
+      }
+    } catch (error) {
+      toast({ variant: 'destructive', title: 'Access Denied', description: 'Unable to verify credentials.' });
     }
     setLoading(false);
   };
@@ -53,6 +65,17 @@ export default function AdminLogin() {
         </CardHeader>
         <form onSubmit={handleLogin}>
           <CardContent className="space-y-6">
+            <div className="space-y-3">
+              <Label className="text-[10px] uppercase tracking-[0.4em] font-bold text-white/30 ml-1">Admin ID</Label>
+              <Input
+                type="text"
+                placeholder="admin"
+                className="bg-black/40 border-white/10 h-16 rounded-[20px] text-white text-lg focus:ring-4 focus:ring-primary/10 transition-all placeholder:text-white/10"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+              />
+            </div>
             <div className="space-y-3">
               <Label className="text-[10px] uppercase tracking-[0.4em] font-bold text-white/30 ml-1">Security Key</Label>
               <div className="relative group">
